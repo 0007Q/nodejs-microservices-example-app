@@ -6,6 +6,6 @@ COPY nodemon.json ./
 
 EXPOSE 80
 
-CMD npm config set cache-min 9999999 \
+CMD npm config set cache-min 0 \
     && npm install \
     && npm run start:dev

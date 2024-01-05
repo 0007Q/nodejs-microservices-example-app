@@ -1,11 +1,29 @@
-version: '3'
+version: "3"
+
+x-default-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "5m"
+    max-file: "2"
+    tag: "{{.Name}}|{{.ImageName}}|{{.ID}}"
+
 services:
+  # prometheus:
+  #   image: prom/prometheus
+  #   container_name: prometheus
+  #   command:
+  #     - "--config.file=/etc/prometheus/prometheus.yaml"
+  #   ports:
+  #     - 9090:9090
+  #   restart: unless-stopped
+  #   volumes:
+  #     - ./prometheus:/etc/prometheus
 
   db:
     image: mongo
     container_name: db
     ports:
-     - "4002:27017"
+      - "4002:27017"
     restart: always
 
   db-fixture:
@@ -22,17 +40,21 @@ services:
       dockerfile: Dockerfile-dev
     container_name: users
     volumes:
-     - ./tmp/npm:/root/.npm:z
-     - ./users/src:/usr/src/app/src:z
+      - ./tmp/npm:/root/.npm:z
+      - ./users/src:/usr/src/app/src:z
+      - ./opentelemetry/src/tracing.js:/usr/src/app/src/tracing.js:z
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     ports:
-     - "4001:80"
+      - "4001:80"
     environment:
-     - PORT=80
-     - DBHOST=mongodb://db:27017
-     - NODE_ENV=development
+      - PORT=80
+      - DBHOST=mongodb://db:27017
+      - NODE_ENV=development
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=users-service,service.version=2.0.0
     depends_on:
-     - db
+      - db
     restart: always
+    logging: *logging
 
   web:
     image: web
@@ -41,13 +63,32 @@ services:
       dockerfile: Dockerfile-dev
     container_name: web
     volumes:
-     - ./tmp/npm:/root/.npm:z
-     - ./web/src:/usr/src/app/src:z
+      - ./tmp/npm:/root/.npm:z
+      - ./web/src:/usr/src/app/src:z
+      - ./opentelemetry/src/tracing.js:/usr/src/app/src/tracing.js:z
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     ports:
-     - "4000:80"
+      - "4000:80"
     environment:
-     - PORT=80
-     - NODE_ENV=development
+      - PORT=80
+      - NODE_ENV=development
+      - OTEL_RESOURCE_ATTRIBUTES=service.name=web-service,service.version=2.0.0
     depends_on:
-     - users
+      - users
     restart: always
+    logging: *logging
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.91.0
+    container_name: otel-collector
+    user: 0:0
+    ports:
+      # This is default port for listening to GRPC protocol
+      - 4317:4317
+      # This is default port for listening to HTTP protocol
+      - 4318:4318
+    volumes:
+      # Path to the collector config file
+      - ./opentelemetry/conf:/etc/otelcol-contrib/
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    logging: *logging

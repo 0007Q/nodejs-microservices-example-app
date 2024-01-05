@@ -1,4 +1,12 @@
 "use strict";
+// import the OpenTelemetry api library
+const api = require("@opentelemetry/api");
+const { logs, SeverityNumber } = require("@opentelemetry/api-logs");
+
+// create a tracer and name it after your package
+const tracer = api.trace.getTracer("myInstrumentation");
+const meter = api.metrics.getMeter("default");
+const logger = logs.getLogger("default");
 
 const express = require("express");
 const axios = require("axios");
@@ -11,38 +19,60 @@ const USERS_SERVICE_URL = process.env.SERVICE_URL || "http://users";
 // App
 const app = express();
 
+// create the metric counters for our response code metrics
+const counter_2xx = meter.createCounter("workshop.web.2xx_count");
+const counter_5xx = meter.createCounter("workshop.web.5xx_count");
+
 async function checkWeather(weather, res) {
   switch (weather) {
     // it's raining, we are loosing time
     case "rain":
       await sleep(1500);
       res.status(202).send("Hello Rainy World!\n");
+      counter_2xx.add(1);
       break;
 
     // it's snowing, generate error
     case "snow":
       res.status(500).send("Bye Bye Snow!\n");
       console.log(`ERROR: IT IS SNOWING`);
+      counter_5xx.add(1);
       break;
 
     // by default, it's sunny
     default:
       res.status(200).send("Hello Sunny World!\n");
+      counter_2xx.add(1);
   }
 }
 
 async function generateWork(nb) {
   for (let i = 0; i < Number(nb); i++) {
-    console.log(`*** DOING SOMETHING ${i}`);
+    // create a new span
+    // the current span is automatically used as parent unless one
+    // is explicitly provided as an argument
+    // the span you create then automatically becomes the current one
+    let span = tracer.startSpan("generateWork");
+    // add an attribute
+    span.setAttribute("iterations.current", i + 1);
+    span.setAttribute("iterations.total", nb);
+    // log an event and include some structured data
+    span.addEvent(`*** DOING SOMETHING ${i}`);
     // wait for 50ms to simulate doing some work
     await sleep(50);
+    // don't forget to always end the span to flush data out
+    span.end();
   }
 }
 
 async function main() {
   app.get("/", (req, res) => {
     let nbLoop = req.query.loop;
-    let weather = req.query.weather;
+    let weather = req.query.weather; // access the current span from the active context
+    let activeSpan = api.trace.getSpan(api.context.active());
+    // add an attribute
+    activeSpan.setAttribute("nbLoop", nbLoop);
+    activeSpan.setAttribute("weather", weather);
     // generate some work
     if (nbLoop != undefined) {
       generateWork(nbLoop);
@@ -56,9 +86,23 @@ async function main() {
   });
 
   app.get("/api/data", (req, res) => {
+    // access the current span from the active context
+    let activeSpan = api.trace.getSpan(api.context.active());
+    // add an event and include some structured data
+    activeSpan.addEvent(`Making request to ${USERS_SERVICE_URL}/api/data`);
     axios
       .get(USERS_SERVICE_URL + "/api/data")
       .then((response) => {
+        // log the response status and set the span and trace ID
+        logger.emit({
+          severityNumber: SeverityNumber.INFO,
+          severityText: "INFO",
+          body: `Response from ${USERS_SERVICE_URL}/api/data was ${response.status} ${response.statusText}`,
+          attributes: {
+            span_id: activeSpan.spanContext().spanId,
+            trace_id: activeSpan.spanContext().traceId,
+          },
+        });
         res.json(response.data);
       })
       .catch((err) => {
