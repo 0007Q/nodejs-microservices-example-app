@@ -8,17 +8,6 @@ x-default-logging: &logging
     tag: "{{.Name}}|{{.ImageName}}|{{.ID}}"
 
 services:
-  # prometheus:
-  #   image: prom/prometheus
-  #   container_name: prometheus
-  #   command:
-  #     - "--config.file=/etc/prometheus/prometheus.yaml"
-  #   ports:
-  #     - 9090:9090
-  #   restart: unless-stopped
-  #   volumes:
-  #     - ./prometheus:/etc/prometheus
-
   db:
     image: mongo
     container_name: db
@@ -42,7 +31,7 @@ services:
     volumes:
       - ./tmp/npm:/root/.npm:z
       - ./users/src:/usr/src/app/src:z
-      - ./opentelemetry/src/tracing.js:/usr/src/app/src/tracing.js:z
+      - ./opentelemetry/src/instrumentation.js:/usr/src/app/src/instrumentation.js:z
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     ports:
       - "4001:80"
@@ -65,7 +54,7 @@ services:
     volumes:
       - ./tmp/npm:/root/.npm:z
       - ./web/src:/usr/src/app/src:z
-      - ./opentelemetry/src/tracing.js:/usr/src/app/src/tracing.js:z
+      - ./opentelemetry/src/instrumentation.js:/usr/src/app/src/instrumentation.js:z
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
     ports:
       - "4000:80"

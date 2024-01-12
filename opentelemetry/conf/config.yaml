@@ -1,18 +1,18 @@
 receivers:
-  # Default receiver to collect trace and metrics received from grpc and http protocols
+  # Receiver to collect trace, metrics and logs from grpc and http protocols
   # Default is port 4317 for grpc and 4318 for http
   otlp:
     protocols:
       grpc:
       http:
-  
+  # Receiver to scrape metrics from Docker in Prometheus format
   prometheus/docker:
     config:
       scrape_configs:
         - job_name: docker-otel-eg
           static_configs:
             - targets: ["host.docker.internal:9100"]
-
+  # Receiver to pull Docker logs
   filelog:
     include:
       - /var/lib/docker/containers/*/*-json.log
@@ -24,28 +24,10 @@ receivers:
     max_concurrent_files: 1024
     max_log_size: 1MiB
     operators:
-      - id: parser-docker
+      - type: json_parser
         timestamp:
           layout: '%Y-%m-%dT%H:%M:%S.%LZ'
           parse_from: attributes.time
-        type: json_parser
-      - id: extract_metadata_from_docker_tag
-        parse_from: attributes.attrs.tag
-        regex: ^(?P<name>[^\|]+)\|(?P<image_name>[^\|]+)\|(?P<id>[^$]+)$
-        type: regex_parser
-        if: 'attributes?.attrs?.tag != nil'
-      - from: attributes.name
-        to: resource["docker.container.name"]
-        type: move
-        if: 'attributes?.name != nil'
-      - from: attributes.image_name
-        to: resource["docker.image.name"]
-        type: move
-        if: 'attributes?.image_name != nil'
-      - from: attributes.id
-        to: resource["docker.container.id"]
-        type: move
-        if: 'attributes?.id != nil'
       - from: attributes.stream
         to: resource["log.io.stream"]
         type: move
@@ -59,19 +41,16 @@ receivers:
     start_at: beginning
 
 processors:
-  # Recommended processor to proceed sending of traces or metrics in batch mode (requires less resources)
+  # Accepts spans, metrics, or logs and places them into batches
+  # to better compress the data and reduce the number of outgoing connections
   batch:
-  memory_limiter:
-    check_interval: 5s
-    limit_percentage: 80
-    spike_limit_percentage: 25
 
 exporters:
-  # Debugging exporter directly to collector system log
-  logging:
-    loglevel: debug
+  # Exports data to the console
+  debug:
+    verbosity: detailed
 
-  # configuring otlp to Lightstep public satellites
+  # Exports data to Cloud Observability
   otlp/lightstep:
     endpoint: ingest.lightstep.com:443
     headers:
@@ -82,16 +61,15 @@ exporters:
 
 service:
   pipelines:
-    # Simple trace pipeline that will send all traces received from otlp protocol to the logs in batch mode
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [otlp/lightstep]
+      processors: [batch]
+      exporters: [logging, otlp/lightstep]
     metrics:
-      receivers: [otlp]
-      processors: [memory_limiter, batch]
-      exporters: [otlp/lightstep]
+      receivers: [otlp, prometheus/docker]
+      processors: [batch]
+      exporters: [logging, otlp/lightstep]
     logs:
       receivers: [otlp, filelog]
-      processors: [memory_limiter, batch]
+      processors: [batch]
       exporters: [otlp/lightstep]

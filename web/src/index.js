@@ -3,9 +3,11 @@
 const api = require("@opentelemetry/api");
 const { logs, SeverityNumber } = require("@opentelemetry/api-logs");
 
-// create a tracer and name it after your package
+// acquire a tracer
 const tracer = api.trace.getTracer("myInstrumentation");
+// acquire the default meter
 const meter = api.metrics.getMeter("default");
+// acquire the default logger
 const logger = logs.getLogger("default");
 
 const express = require("express");
@@ -29,6 +31,7 @@ async function checkWeather(weather, res) {
     case "rain":
       await sleep(1500);
       res.status(202).send("Hello Rainy World!\n");
+      // increment the metric counter for 2xx responses
       counter_2xx.add(1);
       break;
 
@@ -36,12 +39,14 @@ async function checkWeather(weather, res) {
     case "snow":
       res.status(500).send("Bye Bye Snow!\n");
       console.log(`ERROR: IT IS SNOWING`);
+      // increment the metric counter for 5xx responses
       counter_5xx.add(1);
       break;
 
     // by default, it's sunny
     default:
       res.status(200).send("Hello Sunny World!\n");
+      // increment the metric counter for 2xx responses
       counter_2xx.add(1);
   }
 }

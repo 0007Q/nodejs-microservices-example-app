@@ -1,5 +1,5 @@
 {
   "watch": ["src"],
   "ext": "js,json",
-  "exec": "node --require ./src/tracing.js ./src/index.js"
+  "exec": "node --require ./src/instrumentation.js ./src/index.js"
 }
