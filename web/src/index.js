@@ -7,6 +7,8 @@ const axios = require("axios");
 const api = require("@opentelemetry/api");
 // create a tracer and name it after your package
 const tracer = api.trace.getTracer("myInstrumentation");
+// acquire the default metrics meter
+const meter = api.metrics.getMeter("default");
 
 // Constants
 const PORT = process.env.PORT || 80;
@@ -16,23 +18,30 @@ const USERS_SERVICE_URL = process.env.SERVICE_URL || "http://users";
 // App
 const app = express();
 
+// create the metric counters for our response code metrics
+const counter_2xx = meter.createCounter("workshop.web.2xx_count");
+const counter_5xx = meter.createCounter("workshop.web.5xx_count");
+
 async function checkWeather(weather, res) {
   switch (weather) {
     // it's raining, we are loosing time
     case "rain":
       await sleep(1500);
       res.status(202).send("Hello Rainy World!\n");
+      counter_2xx.add(1);
       break;
 
     // it's snowing, generate error
     case "snow":
       res.status(500).send("Bye Bye Snow!\n");
+      counter_5xx.add(1);
       console.log(`ERROR: IT IS SNOWING`);
       break;
 
     // by default, it's sunny
     default:
       res.status(200).send("Hello Sunny World!\n");
+      counter_2xx.add(1);
   }
 }
 
