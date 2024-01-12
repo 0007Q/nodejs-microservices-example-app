@@ -3,6 +3,11 @@
 const express = require("express");
 const axios = require("axios");
 
+// import the OpenTelemetry api library
+const api = require("@opentelemetry/api");
+// create a tracer and name it after your package
+const tracer = api.trace.getTracer("myInstrumentation");
+
 // Constants
 const PORT = process.env.PORT || 80;
 const HOST = process.env.HOST || "0.0.0.0";
@@ -33,9 +38,20 @@ async function checkWeather(weather, res) {
 
 async function generateWork(nb) {
   for (let i = 0; i < Number(nb); i++) {
-    console.log(`*** DOING SOMETHING ${i}`);
+    // create a new span
+    // the current span is automatically used as parent unless one
+    // is explicitly provided as an argument
+    // the span you create then automatically becomes the current one
+    let span = tracer.startSpan("generateWork");
+    // add an attribute
+    span.setAttribute("iterations.current", i + 1);
+    span.setAttribute("iterations.total", nb);
+    // log an event and include some structured data
+    span.addEvent(`*** DOING SOMETHING ${i}`);
     // wait for 50ms to simulate doing some work
     await sleep(50);
+    // don't forget to always end the span to flush data out
+    span.end();
   }
 }
 
@@ -43,6 +59,12 @@ async function main() {
   app.get("/", (req, res) => {
     let nbLoop = req.query.loop;
     let weather = req.query.weather;
+    // access the current span from the active context
+    let activeSpan = api.trace.getSpan(api.context.active());
+    // add an attribute
+    activeSpan.setAttribute("nbLoop", nbLoop);
+    activeSpan.setAttribute("weather", weather);
+
     // generate some work
     if (nbLoop != undefined) {
       generateWork(nbLoop);
@@ -56,6 +78,11 @@ async function main() {
   });
 
   app.get("/api/data", (req, res) => {
+    // access the current span from the active context
+    let activeSpan = api.trace.getSpan(api.context.active());
+    // log an event and include some structured data
+    activeSpan.addEvent(`Making request to ${USERS_SERVICE_URL}/api/data`);
+
     axios
       .get(USERS_SERVICE_URL + "/api/data")
       .then((response) => {
