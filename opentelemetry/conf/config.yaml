@@ -57,7 +57,7 @@ exporters:
   otlp/lightstep:
     endpoint: ingest.lightstep.com:443
     headers:
-      "lightstep-access-token": ***REMOVED***
+      "lightstep-access-token": "{LIGHTSTEP_ACCESS_TOKEN}"
     tls:
       insecure: false
       insecure_skip_verify: true
