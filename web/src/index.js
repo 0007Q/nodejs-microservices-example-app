@@ -5,10 +5,13 @@ const axios = require("axios");
 
 // import the OpenTelemetry api library
 const api = require("@opentelemetry/api");
+const { logs, SeverityNumber } = require("@opentelemetry/api-logs");
 // create a tracer and name it after your package
 const tracer = api.trace.getTracer("myInstrumentation");
 // acquire the default metrics meter
 const meter = api.metrics.getMeter("default");
+// acquire the default logger
+const logger = logs.getLogger("default");
 
 // Constants
 const PORT = process.env.PORT || 80;
@@ -95,6 +98,17 @@ async function main() {
     axios
       .get(USERS_SERVICE_URL + "/api/data")
       .then((response) => {
+        // log the response status and set the span and trace ID
+        logger.emit({
+          severityNumber: SeverityNumber.INFO,
+          severityText: "INFO",
+          body: `Response from ${USERS_SERVICE_URL}/api/data was ${response.status} ${response.statusText}`,
+          attributes: {
+            span_id: activeSpan.spanContext().spanId,
+            trace_id: activeSpan.spanContext().traceId,
+          },
+        });
+
         res.json(response.data);
       })
       .catch((err) => {

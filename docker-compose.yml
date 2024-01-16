@@ -1,4 +1,12 @@
 version: "3"
+# default logging configuration
+x-default-logging: &logging
+  driver: "json-file"
+  options:
+    max-size: "5m"
+    max-file: "2"
+    tag: "{{.Name}}|{{.ImageName}}|{{.ID}}"
+
 services:
   db:
     image: mongo
@@ -24,6 +32,7 @@ services:
       - ./tmp/npm:/root/.npm:z
       - ./users/src:/usr/src/app/src:z
       - ./opentelemetry/src/instrumentation.js:/usr/src/app/src/instrumentation.js:z
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     ports:
       - "4001:80"
     environment:
@@ -34,6 +43,7 @@ services:
     depends_on:
       - db
     restart: always
+    logging: *logging
 
   web:
     image: web
@@ -45,6 +55,7 @@ services:
       - ./tmp/npm:/root/.npm:z
       - ./web/src:/usr/src/app/src:z
       - ./opentelemetry/src/instrumentation.js:/usr/src/app/src/instrumentation.js:z
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
     ports:
       - "4000:80"
     environment:
@@ -54,6 +65,7 @@ services:
     depends_on:
       - users
     restart: always
+    logging: *logging
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.92.0
@@ -66,3 +78,6 @@ services:
     volumes:
       # Path to the collector config file
       - ./opentelemetry/conf:/etc/otelcol-contrib/
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    logging: *logging
+    user: 0:0

@@ -14,6 +14,34 @@ receivers:
           static_configs:
             - targets: ["host.docker.internal:9100"]
 
+  # Receiver to pull Docker logs
+  filelog:
+    include:
+      - /var/lib/docker/containers/*/*-json.log
+    encoding: utf-8
+    fingerprint_size: 1kb
+    force_flush_period: "0"
+    include_file_name: false
+    include_file_path: true
+    max_concurrent_files: 1024
+    max_log_size: 1MiB
+    operators:
+      - type: json_parser
+        timestamp:
+          layout: "%Y-%m-%dT%H:%M:%S.%LZ"
+          parse_from: attributes.time
+      - from: attributes.stream
+        to: resource["log.io.stream"]
+        type: move
+      - field: attributes.attrs.tag
+        type: remove
+        if: "attributes?.attrs?.tag != nil"
+      - from: attributes.log
+        to: body
+        type: move
+    poll_interval: 200ms
+    start_at: beginning
+
 
 processors:
   # Accepts spans, metrics, or logs and places them into batches
@@ -29,7 +57,7 @@ exporters:
   otlp/lightstep:
     endpoint: ingest.lightstep.com:443
     headers:
-      "lightstep-access-token": "{LIGHTSTEP_ACCESS_TOKEN}"
+      "lightstep-access-token": ***REMOVED***
     tls:
       insecure: false
       insecure_skip_verify: true
@@ -44,4 +72,9 @@ service:
       receivers: [otlp, prometheus/docker]
       processors: [batch]
       exporters: [debug, otlp/lightstep]
+    logs:
+      receivers: [otlp, filelog]
+      processors: [batch]
+      exporters: [otlp/lightstep]
+
 
