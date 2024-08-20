@@ -49,7 +49,7 @@ async function main() {
     }
     // Set the response based on the weather input
     if (weather == undefined) {
-      res.send("Hello World!\n");
+      res.send("This is the start of a whoel new World!\n");
     } else {
       checkWeather(weather, res);
     }
