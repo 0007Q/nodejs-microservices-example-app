@@ -24,12 +24,14 @@ services:
     volumes:
      - ./tmp/npm:/root/.npm:z
      - ./users/src:/usr/src/app/src:z
+     - ./opentelemetry/src/instrumentation.js:/usr/src/app/src/instrumentation.js:z
     ports:
      - "4001:80"
     environment:
      - PORT=80
      - DBHOST=mongodb://db:27017
      - NODE_ENV=development
+     - OTEL_RESOURCE_ATTRIBUTES=service.name=users-service,service.version=2.0.0
     depends_on:
      - db
     restart: always
@@ -43,11 +45,26 @@ services:
     volumes:
      - ./tmp/npm:/root/.npm:z
      - ./web/src:/usr/src/app/src:z
+     - ./opentelemetry/src/instrumentation.js:/usr/src/app/src/instrumentation.js:z
     ports:
      - "4000:80"
     environment:
      - PORT=80
      - NODE_ENV=development
+     - OTEL_RESOURCE_ATTRIBUTES=service.name=web-service,service.version=2.0.0
     depends_on:
      - users
     restart: always
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.92.0
+    container_name: otel-collector
+    ports:
+      # This is default port for listening to GRPC protocol
+      - 4317:4317
+      # This is default port for listening to HTTP protocol
+      - 4318:4318
+    volumes:
+      # Path to the collector config file
+      - ./opentelemetry/conf:/etc/otelcol-contrib/
+

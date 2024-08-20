@@ -1,0 +1,33 @@
+receivers:
+  # Receiver to collect trace, metrics and logs from grpc and http protocols
+  # Default is port 4317 for grpc and 4318 for http
+  otlp:
+    protocols:
+      grpc:
+      http:
+
+processors:
+  # Accepts spans, metrics, or logs and places them into batches
+  # to better compress the data and reduce the number of outgoing connections
+  batch:
+
+exporters:
+  # Exports data to the console
+  debug:
+    verbosity: detailed
+
+  # Exports data to Cloud Observability
+  otlp/lightstep:
+    endpoint: ingest.lightstep.com:443
+    headers:
+      "lightstep-access-token": "8RqFuW9C56tro83KM1d9NHFAPUMdh7j3qRsfreL8q4UWdgiNVuTvUMT5UeQ8aRzUDgoy6BUp8VRnK_FkopJnTiZHijzV9-3b6J_A44Fl"
+    tls:
+      insecure: false
+      insecure_skip_verify: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [debug, otlp/lightstep]
